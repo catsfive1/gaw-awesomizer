@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "GAW Awesomizer",
+  "version": "1.0.0",
+  "description": "Power-user tools for greatawakening.win + patriots.win: hover-zoom previews, keyboard nav, age/keyword/blocklist filters, bulk hide, domain badges. FOXY lineage, dual-site.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "storage",
+    "clipboardWrite",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://greatawakening.win/*",
+        "*://patriots.win/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ]
+}
