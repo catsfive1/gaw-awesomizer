@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "GAW Awesomizer",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Power-user tools for greatawakening.win + patriots.win: hover-zoom previews, keyboard nav, age/keyword/blocklist filters, bulk hide, domain badges. FOXY lineage, dual-site.",
   "icons": {
     "16": "icons/icon16.png",
