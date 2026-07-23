@@ -6,7 +6,7 @@
 (async function() {
     'use strict';
 
-    const VERSION = '0.1.0';
+    const VERSION = '1.1.0';
     const SCRIPT_NAME = 'GAW Awesomizer';
 
     if (window.__PE_INIT) return;
@@ -461,6 +461,14 @@
         linkCache: new Map(), commentCache: new Map(), userCache: new Map(), uuidToIdMap: new Map(),
         postLinkCache: new Map(), // uuid -> {link, domain} | null (resolved-nothing) — populated via API, see fetchPostLinkInfo
         settingsPanelOpen: false, isPostPage: window.location.pathname.includes('/p/'),
+        // v1.1.0 FIX: isUserPage detects /u/<username> profile pages. Feed
+        // filters (age, hideUpvoted, hideDownvoted, read-history, keywords,
+        // blocklist, minScore) are DISABLED here — they are feed conveniences
+        // and are actively hostile on a user's history page (e.g. a user
+        // reviewing their own old posts would see everything >8h old vanish).
+        // This was the 9-month "posts eat themselves" bug: filters applied
+        // indiscriminately blanked every history post within seconds of load.
+        isUserPage: /^\/u\//i.test(window.location.pathname),
         currentPostUuid: null, currentPostNumericId: null, hoveredPostEl: null,
         currentVideo: null, lastHovered: [], voteLog: [], lastVote: null,
         sessionProcessed: 0, currentPostIndex: -1, visiblePosts: [],
@@ -853,6 +861,12 @@
         },
         async resolveTarget(t) {
             const postEl = t.closest('.post'); if (postEl) STATE.hoveredPostEl = postEl;
+            // COMMANDER DIRECTIVE 2026-07-22: hover-zoom fires ONLY on post
+            // thumbnails (.thumb), nowhere else. Every link-based hover path
+            // (titles, comment counts, user cards, external article previews,
+            // tweets resolved from anchors) is disabled. Hover the thumbnail
+            // image to get the zoom; hover anything else and nothing happens.
+            if (!t.closest('.thumb')) return null;
             const link = t.closest('[href]'); const src = t.getAttribute?.('src');
             if (link) { const h = link.getAttribute('href')||''; const um = h.match(RE.USER_LINK); if (um && um[1] !== 'me') return { type: TT.USER, username: um[1], key: 'user:' + um[1] }; }
             if (link) { const lt = (t.textContent||'').trim().toLowerCase(); const ft = (link.textContent||'').trim().toLowerCase(); const h = link.getAttribute('href')||''; if ((RE.COMMENT_TEXT.test(lt) || RE.COMMENT_TEXT.test(ft)) && h.includes('/p/')) { let nid = postEl ? getNumericPostId(postEl) : null; if (!nid) { const um = h.match(/\/p\/([a-zA-Z0-9]+)/); if (um) nid = STATE.uuidToIdMap.get(um[1]) || await fetchNumericIdForUuid(um[1]); } if (nid) return { type: TT.COMMENTS, numericId: nid, key: 'comments:' + nid }; } }
@@ -1075,6 +1089,14 @@
     }
 
     function _filterPost(p, uuid, now) {
+        // v1.1.0 FIX: NEVER apply feed filters on user-profile pages (/u/<name>).
+        // The age filter (default maxHours=8), hide-upvoted, hide-read, etc. are
+        // feed conveniences that make sense on / where you want fresh content.
+        // On a user's OWN history page they are catastrophic — every post older
+        // than 8h gets .pe-hidden within seconds of load ("the page eats itself,"
+        // a bug that survived 9 months across FOXY → Awesomizer because it looked
+        // like a race/DOM-mutation bug, not a filter-context bug). Always show.
+        if (STATE.isUserPage) { p.classList.remove('pe-hidden'); return false; }
         if (isSticky(p)) { p.classList.remove('pe-hidden'); return false; }
         const ub = findVoteButton(p, 'up'), db = findVoteButton(p, 'down');
         // When detecting upvotes from DOM on page load, set timestamp to 0 (epoch)
