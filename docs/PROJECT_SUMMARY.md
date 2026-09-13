@@ -45,6 +45,6 @@ N/A — repo is frozen. Still useful as historical reference: README/PRIVACY.md 
 
 ## GitHub
 
-https://github.com/catsfive1/gaw-awesomizer.git — branch `main`, HEAD `a74b2d220882a6c2950b75c5461d28570d8affff`. Working tree clean.
+https://github.com/catsfive1/gaw-awesomizer.git — branch `main`, last code commit `a74b2d220882a6c2950b75c5461d28570d8affff` (the retirement marker, 2026-07-23); 2026-09-13 docs commits sit on top.
 
 **Env vars:** none.
