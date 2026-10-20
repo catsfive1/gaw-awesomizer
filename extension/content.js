@@ -6,7 +6,7 @@
 (async function() {
     'use strict';
 
-    const VERSION = '1.1.3';
+    const VERSION = '1.1.4';
     const SCRIPT_NAME = 'GAW Awesomizer';
 
     if (window.__PE_INIT) return;
@@ -451,6 +451,10 @@
 
     const MAX_VOTES = 2000;
     const READ_HIDE_TTL_MS = 24 * 3600000;
+    // Commander directive (asked repeatedly): a post he upvotes must stay on screen
+    // AT LEAST 2 minutes before hide-upvoted may remove it. Applies to hotkey votes
+    // (handleVote) and native-arrow votes (DOM-sync path) alike.
+    const VOTE_GRACE_MS = 2 * 60 * 1000;
 
     const STATE = {
         upvotedIDs: new Set(GM_getValue('pe_upvoted', [])), downvotedIDs: new Set(GM_getValue('pe_downvoted', [])),
@@ -1185,16 +1189,21 @@
         if (isSearchPage || /^\/u\//i.test(_pn) || _pn.includes('/p/')) { p.classList.remove('pe-hidden'); return false; }
         if (isSticky(p)) { p.classList.remove('pe-hidden'); return false; }
         const ub = findVoteButton(p, 'up'), db = findVoteButton(p, 'down');
-        // When detecting upvotes from DOM on page load, set timestamp to 0 (epoch)
-        // so the 60s grace period doesn't block auto-hide. The grace period only protects
-        // votes cast THIS session (which go through handleVote and get Date.now() timestamps).
-        if (ub?.classList.contains('active')) { if (!STATE.upvotedIDs.has(uuid)) { STATE.upvotedIDs.add(uuid); if (!STATE.upvoteTimestamps.has(uuid)) STATE.upvoteTimestamps.set(uuid, 0); } }
+        // v1.1.4: native-arrow upvotes get the same VOTE_GRACE_MS protection as hotkey
+        // votes. pe-vote-base records upvote state at FIRST observation of this DOM node:
+        // 'pre' = already upvoted when first seen (previous session → ts 0, may hide);
+        // 'none' = un-voted earlier this page load, so .active now means the user just
+        // clicked the site's own arrow → stamp Date.now() so the grace period applies.
+        const _nativeUpFresh = p.dataset.peVoteBase === 'none';
+        if (p.dataset.peVoteBase === undefined) p.dataset.peVoteBase = (ub?.classList.contains('active') || p.querySelector('.vote[data-vote]')?.getAttribute('data-vote') === 'up') ? 'pre' : 'none';
+        const _domUpTs = () => (_nativeUpFresh ? Date.now() : 0);
+        if (ub?.classList.contains('active')) { if (!STATE.upvotedIDs.has(uuid)) { STATE.upvotedIDs.add(uuid); if (!STATE.upvoteTimestamps.has(uuid)) STATE.upvoteTimestamps.set(uuid, _domUpTs()); } }
         const vc = p.querySelector('.vote[data-vote]');
-        if (vc) { const dv = vc.getAttribute('data-vote'); if (dv === 'up' && !STATE.upvotedIDs.has(uuid)) { STATE.upvotedIDs.add(uuid); if (!STATE.upvoteTimestamps.has(uuid)) STATE.upvoteTimestamps.set(uuid, 0); } if (dv === 'down') STATE.downvotedIDs.add(uuid); }
+        if (vc) { const dv = vc.getAttribute('data-vote'); if (dv === 'up' && !STATE.upvotedIDs.has(uuid)) { STATE.upvotedIDs.add(uuid); if (!STATE.upvoteTimestamps.has(uuid)) STATE.upvoteTimestamps.set(uuid, _domUpTs()); } if (dv === 'down') STATE.downvotedIDs.add(uuid); }
         if (db?.classList.contains('active')) STATE.downvotedIDs.add(uuid);
         let hide = false; const age = getPostAge(p);
         if (CONFIG.maxHours > 0 && age > CONFIG.maxHours) hide = true;
-        else if (CONFIG.hideUpvoted && STATE.upvotedIDs.has(uuid)) { const ts = STATE.upvoteTimestamps.get(uuid); if (!ts || now - ts >= 60000) hide = true; }
+        else if (CONFIG.hideUpvoted && STATE.upvotedIDs.has(uuid)) { const ts = STATE.upvoteTimestamps.get(uuid); if (!ts || now - ts >= VOTE_GRACE_MS) hide = true; }
         else if (CONFIG.hideDownvoted && STATE.downvotedIDs.has(uuid)) hide = true;
         else if (STATE.readIDs.has(uuid)) { const rts = STATE.readTimestamps.get(uuid); if (rts && (now - rts) < READ_HIDE_TTL_MS) hide = true; else if (!rts) hide = true; }
         if (!hide && CONFIG.keywords.length > 0) { const ct = p.dataset.peTitle || getPostTitle(p); if (!CONFIG.keywords.some(kw => ct.includes(kw.toLowerCase()))) hide = true; }
