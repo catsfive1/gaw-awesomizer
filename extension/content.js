@@ -6,7 +6,7 @@
 (async function() {
     'use strict';
 
-    const VERSION = '1.1.1';
+    const VERSION = '1.1.3';
     const SCRIPT_NAME = 'GAW Awesomizer';
 
     if (window.__PE_INIT) return;
@@ -430,7 +430,7 @@
     // =========================================================================
     // CONSTANTS & CONFIG
     // =========================================================================
-    const RE = { UUID_LINK: /\/p\/([a-zA-Z0-9_-]+)/, NUMERIC_ID_6: /^\d{6,}$/, NUMERIC_ID: /^\d+$/, NUMERIC_ID_7: /^\d{7,}$/, AGE_TEXT: /(\d+)\s*(minute|min|hour|hr|h|day|d)[s]?\s+ago/i, TWEET_URL: /(?:twitter|x)\.com\/\w+\/status\/(\d+)/, IMG_EXT: /\.(jpg|jpeg|png|gif|webp)/i, COMMENT_TEXT: /^\d+\s*comment/, JSON_ID: /"id"\s*:\s*(\d{7,})/, DATA_ID: /data-id="(\d{7,})"/, MEDIA_PATH: /\/(preview|thumb|icon|small|medium)\//, USER_LINK: /^\/u\/([^\/\?]+)/ };
+    const RE = { UUID_LINK: /\/p\/([a-zA-Z0-9_-]+)/, NUMERIC_ID_6: /^\d{6,}$/, NUMERIC_ID: /^\d+$/, NUMERIC_ID_7: /^\d{7,}$/, AGE_TEXT: /(\d+)\s*(second|sec|minute|min|hour|hr|h|day|d|week|w|month|mo|year|y)[s]?\s+ago/i, JUST_NOW: /just now/i, TWEET_URL: /(?:twitter|x)\.com\/\w+\/status\/(\d+)/, IMG_EXT: /\.(jpg|jpeg|png|gif|webp)/i, COMMENT_TEXT: /^\d+\s*comment/, JSON_ID: /"id"\s*:\s*(\d{7,})/, DATA_ID: /data-id="(\d{7,})"/, MEDIA_PATH: /\/(preview|thumb|icon|small|medium)\//, USER_LINK: /^\/u\/([^\/\?]+)/ };
 
     const DOMAIN_BADGES = { 'twitter.com': { icon: '\u{1D54F}', color: '#1DA1F2' }, 'x.com': { icon: '\u{1D54F}', color: '#1DA1F2' }, 'youtube.com': { icon: '▶', color: '#FF0000' }, 'youtu.be': { icon: '▶', color: '#FF0000' }, 'rumble.com': { icon: '🟢', color: '#85c742' }, 'bitchute.com': { icon: '₿', color: '#EF4136' }, 'gab.com': { icon: 'G', color: '#21cf7a' }, 'truthsocial.com': { icon: 'T', color: '#5448ee' }, 'gettr.com': { icon: 'G', color: '#FF0000' }, 'instagram.com': { icon: '📷', color: '#E4405F' }, 'tiktok.com': { icon: '♪', color: '#000000' }, 'reddit.com': { icon: 'r/', color: '#FF4500' }, 'foxnews.com': { icon: 'FOX', color: '#003366' }, 'breitbart.com': { icon: 'BB', color: '#F37021' }, 'thegatewaypundit.com': { icon: 'TGP', color: '#C41230' }, 'zerohedge.com': { icon: 'ZH', color: '#F7931A' }, 'dailycaller.com': { icon: 'DC', color: '#00A4E4' }, 'nypost.com': { icon: 'NYP', color: '#C4122F' }, 'epochtimes.com': { icon: 'ET', color: '#1a3668' } };
 
@@ -537,7 +537,29 @@
     // =========================================================================
     function getPostUUID(p) { if (!p) return null; if (p.dataset.peUuid) return p.dataset.peUuid; const l = p.querySelector('a[href*="/p/"]'); if (!l) return null; const m = l.getAttribute('href').match(RE.UUID_LINK); if (m) { p.dataset.peUuid = m[1]; return m[1]; } return null; }
     function getNumericPostId(p) { if (!p) return null; if (p.dataset.peNumericId) return p.dataset.peNumericId; const d = p.getAttribute('data-id'); if (d && RE.NUMERIC_ID_6.test(d)) { p.dataset.peNumericId = d; return d; } let el = p; for (let i = 0; i < 6; i++) { if (el.id && RE.NUMERIC_ID_6.test(el.id)) { p.dataset.peNumericId = el.id; return el.id; } el = el.parentElement; if (!el) break; } const uuid = getPostUUID(p); if (uuid && STATE.uuidToIdMap.has(uuid)) { const n = STATE.uuidToIdMap.get(uuid); p.dataset.peNumericId = n; return n; } if (STATE.isPostPage && STATE.currentPostNumericId) { p.dataset.peNumericId = STATE.currentPostNumericId; return STATE.currentPostNumericId; } return null; }
-    function getPostAge(p) { const t = p.querySelector('time'); if (t) { const d = t.getAttribute('datetime'); if (d) return (Date.now() - new Date(d).getTime()) / 3600000; } const m = p.innerText.replace(/\n/g, ' ').match(RE.AGE_TEXT); if (m) { const v = parseInt(m[1]), u = m[2].toLowerCase(); if (u.startsWith('h')) return v; if (u.startsWith('mi')) return v / 60; if (u.startsWith('d')) return v * 24; } return 0; }
+    // v1.1.2: the modern scored.co UI (patriots.win) has NO <time datetime> and
+    // renders "1 week ago" / "2 months ago" past ~6 days — the old regex didn't
+    // know week/month/year, so week-old+ posts parsed as age 0 and NEVER hid
+    // ("old posts don't disappear"). Order: data-created attr (Win-ModTools
+    // enrichment) → <time datetime> → relative-text parse with full units.
+    function getPostAge(p) {
+        const dc = parseInt(p.getAttribute('data-created') || '', 10);
+        if (!isNaN(dc) && dc > 0) return (Date.now() - dc) / 3600000;
+        const t = p.querySelector('time'); if (t) { const d = t.getAttribute('datetime'); if (d) { const a = (Date.now() - new Date(d).getTime()) / 3600000; if (!isNaN(a) && a >= 0) return a; } }
+        const flat = p.innerText.replace(/\n/g, ' ');
+        if (RE.JUST_NOW.test(flat)) return 0;
+        const m = flat.match(RE.AGE_TEXT);
+        if (m) { const v = parseInt(m[1]), u = m[2].toLowerCase();
+            if (u.startsWith('s')) return v / 3600;
+            if (u.startsWith('mi')) return v / 60;
+            if (u.startsWith('h')) return v;
+            if (u.startsWith('d')) return v * 24;
+            if (u.startsWith('w')) return v * 168;
+            if (u.startsWith('mo')) return v * 720;
+            if (u.startsWith('y')) return v * 8760;
+        }
+        return 0;
+    }
     // Use getAttribute('class') not .className — SVG elements have className as SVGAnimatedString object which crashes .toLowerCase()
     function findVoteButton(p, dir) { const c = p.querySelector('.vote, .voting, .score') || p; for (const b of c.querySelectorAll('a[data-direction], button, [class*="vote"]')) { const dd = b.getAttribute('data-direction'); if (dd === dir) return b; const cls = (b.getAttribute('class') || '').toLowerCase(); if (cls.includes('count') || cls.includes('score')) continue; if (dir === 'up' && cls.includes('up') && !cls.includes('down')) return b; if (dir === 'down' && cls.includes('down') && !cls.includes('up')) return b; } return null; }
 
@@ -757,6 +779,10 @@
         },
         init() {
             if (this.box) return;
+            // v1.1.2: exactly ONE hover box may exist. The retired FOXY engine
+            // (and any duplicate load) shared this id — strays stacked into the
+            // "old zooms stay on the screen" ghosting. Kill them all first.
+            try { document.querySelectorAll('#pe-hover-box').forEach(b => b.remove()); } catch {}
             this.box = document.createElement('div');
             this.box.id = 'pe-hover-box';
             document.body.appendChild(this.box);
@@ -780,6 +806,46 @@
                 const s = this.box.querySelector('.pe-hz-comments, .pe-hz-link-body');
                 if (s) s.scrollTop += e.deltaY;
             }, { passive: false });
+            // v1.1.2: page scroll (outside the box) dismisses the zoom — the
+            // React UI swaps hovered nodes mid-scroll and the mouseout never
+            // fires; this is the classic hoverzoom escape hatch.
+            if (!this._scrollBound) {
+                this._scrollBound = true;
+                window.addEventListener('scroll', () => {
+                    try {
+                        if (this._pointerOverBox || STATE.hoverPinned) return;
+                        if (this.box && this.box.classList.contains('pe-visible')) this.hide(true);
+                    } catch {}
+                }, { passive: true, capture: true });
+            }
+            this.startWatchdog();
+        },
+        // v1.1.2: React-proof liveness watchdog. The modern UI re-renders the
+        // element under the pointer, so mouseout can never fire and stale zooms
+        // hang forever (compounded by the old currentVideo guard, which blocked
+        // EVERY hide while a — possibly detached — video element was referenced).
+        // Every 1.2s: if a box is visible and nothing is actually engaged
+        // (not pinned, pointer not on box, anchor/post not under :hover,
+        // video dead or detached) → force-hide. Also hides on SPA route change.
+        startWatchdog() {
+            if (this._wdTimer) return;
+            let lastPath = location.pathname;
+            this._wdTimer = setInterval(() => {
+                try {
+                    if (location.pathname !== lastPath) {
+                        lastPath = location.pathname;
+                        if (this.box && this.box.classList.contains('pe-visible')) this.hide(true);
+                        return;
+                    }
+                    if (!this.box || !this.box.classList.contains('pe-visible')) return;
+                    if (STATE.hoverPinned) return;
+                    if (this._pointerOverBox) return;
+                    if (STATE.currentVideo && !STATE.currentVideo.isConnected) STATE.currentVideo = null; // dead video ref was freeze-locking hide
+                    if (STATE.currentVideo && !STATE.currentVideo.paused) return;   // genuinely watching: keep
+                    if (this._loadingKey && this._pointerStillEngaged()) return;
+                    if (!this._pointerStillEngaged()) this.hide(true);
+                } catch {}
+            }, 1200);
         },
         // Soft self-heal: recreate orphaned box without wiping currentKey/load state.
         ensureBox() {
@@ -1105,7 +1171,18 @@
         // Both were manifestations of the same 9-month "page eats itself" bug:
         // feed filters applied to pages where filters are actively hostile.
         // Always show posts on these pages; only filter on listing/feed pages.
-        if (STATE.isUserPage || STATE.isPostPage) { p.classList.remove('pe-hidden'); return false; }
+        // v1.1.3 FIX: NEVER apply feed filters on /search pages either. Search
+        // results are relevance-ordered, not recency-ordered — virtually every
+        // hit is older than maxHours (default 8) — so the age filter nukes the
+        // entire results list within seconds of render. Same bug class as the
+        // profile/single-post "page eats itself" above. Search is an intentional
+        // "show me this exact thing" surface: filters are hostile there too.
+        // v1.1.3: pathname is read LIVE on every call (scored.co is an SPA —
+        // STATE.isUserPage/isPostPage are load-time constants and go stale on
+        // client-side nav, re-arming the filters mid-session).
+        const _pn = window.location.pathname;
+        const isSearchPage = /^\/search(\/|$)/i.test(_pn);
+        if (isSearchPage || /^\/u\//i.test(_pn) || _pn.includes('/p/')) { p.classList.remove('pe-hidden'); return false; }
         if (isSticky(p)) { p.classList.remove('pe-hidden'); return false; }
         const ub = findVoteButton(p, 'up'), db = findVoteButton(p, 'down');
         // When detecting upvotes from DOM on page load, set timestamp to 0 (epoch)
@@ -1331,6 +1408,19 @@ div.sponsored.ad.ad-unit[style*="z-index: -9"]{display:none!important}body.pe-no
     async function initPostPageId() { if (!STATE.isPostPage) return; const pm = window.location.pathname.match(/\/p\/([a-zA-Z0-9]+)/); if (pm) { STATE.currentPostUuid = pm[1]; for (const el of document.querySelectorAll('[id]')) { if (RE.NUMERIC_ID_7.test(el.id)) { STATE.currentPostNumericId = el.id; setUuidId(STATE.currentPostUuid, el.id); return; } } const pd = document.querySelector('.post[data-id]'); if (pd) { const d = pd.getAttribute('data-id'); if (d && RE.NUMERIC_ID_7.test(d)) { STATE.currentPostNumericId = d; setUuidId(STATE.currentPostUuid, d); return; } } const n = await fetchNumericIdForUuid(STATE.currentPostUuid); if (n) STATE.currentPostNumericId = n; } }
 
     async function init() {
+        // v1.1.2: single-engine mutex. window.__PE_INIT cannot cross extension
+        // worlds, so a duplicate engine (FOXY lineage / double install) could
+        // run a second #pe-hover-box alongside this one. The DOM IS shared —
+        // claim it; if another engine already claimed, this load stands down.
+        try {
+            const CLAIM = 'data-pe-engine';
+            const existing = document.documentElement.getAttribute(CLAIM);
+            if (existing && existing !== 'awesomizer') {
+                console.log(`[PE] ${VERSION} standing down — engine "${existing}" already claimed this page`);
+                return;
+            }
+            document.documentElement.setAttribute(CLAIM, 'awesomizer');
+        } catch {}
         console.log(`[PE] ${SCRIPT_NAME} ${VERSION} | ${SITE.host} [${SITE.siteKey}] | per-site config`);
         await peDB.init(); if (peDB.db) peDB.cleanup();
         if (peDB.db) { try { const h = await peDB.getAllReadUUIDs(); let n = 0; for (const u of h) { if (!STATE.readIDs.has(u)) { STATE.readIDs.add(u); STATE.readTimestamps.set(u, Date.now()); n++; } } STATE.idbHiddenCount = n; if (n) console.log(`[PE] IDB: ${n} pre-hidden (24h)`); } catch {} }

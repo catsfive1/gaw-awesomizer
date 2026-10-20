@@ -1,43 +1,46 @@
 {
-  "manifest_version": 3,
-  "name": "GAW Awesomizer",
-  "version": "1.1.1",
-  "description": "Power-user tools for greatawakening.win + patriots.win: hover-zoom previews, keyboard nav, age/keyword/blocklist filters, bulk hide, domain badges. FOXY lineage, dual-site.",
-  "icons": {
-    "16": "icons/icon16.png",
-    "32": "icons/icon32.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
-  },
   "action": {
-    "default_popup": "popup.html",
     "default_icon": {
+      "128": "icons/icon128.png",
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
-    }
+      "48": "icons/icon48.png"
+    },
+    "default_popup": "popup.html"
   },
   "background": {
     "service_worker": "background.js"
   },
+  "content_scripts": [
+    {
+      "js": [
+        "content.js"
+      ],
+      "matches": [
+        "*://greatawakening.win/*",
+        "*://patriots.win/*"
+      ],
+      "run_at": "document_end"
+    }
+  ],
+  "description": "Power-user tools for greatawakening.win + patriots.win: hover-zoom previews, keyboard nav, age/keyword/blocklist filters, bulk hide, domain badges. FOXY lineage, dual-site.",
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "icons": {
+    "128": "icons/icon128.png",
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png"
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAhlkkH3lUS5d05BXFSMBvDQnKPdKN6UJ0w9qJYbc+U0SHYIOW88sAZK+f6G6F5hu+dn+zjVhcvDSmharIyBIxNWoYb4D4wO1NWkbCg/jp6P/Tkb/cJG64xN9X9BWxO3mWEWujmp65R8VXGTE4S8+IMRTUG52xx5c91WVte3oKkuK5hpSnaaXHW+30nEtEbU/TJC+MGQC0zUXG5QsclpNV0W1hS3SbseVXUq0v+4hVbLD1bQNCaQHbdGXsYjIOgrx38kQtpy3KlAanRQjf7vREXxKQPE1Kh0fW0W6Gflyk8vvAp1WViFQqdpMq1SZD+yRirAW76/e5xwAzMh90kBhNowIDAQAB",
+  "manifest_version": 3,
+  "name": "GAW Awesomizer",
   "permissions": [
     "storage",
     "clipboardWrite",
     "activeTab"
   ],
-  "host_permissions": [
-    "http://*/*",
-    "https://*/*"
-  ],
-  "content_scripts": [
-    {
-      "matches": [
-        "*://greatawakening.win/*",
-        "*://patriots.win/*"
-      ],
-      "js": ["content.js"],
-      "run_at": "document_end"
-    }
-  ]
+  "version": "1.1.3"
 }
